@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arène – Duels de réponses d'IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F5F3FA;--surface:#fff;--ink:#1F1A33;--muted:#625C7A;--line:#DAD6E8;--a:#5B3FD1;--a-soft:#ECE8FB;--b:#C2410C;--b-soft:#FBEBE2;
+--head:"Sora",system-ui,sans-serif;--body:"Nunito Sans",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 17px/1.55 var(--body)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.wrap{max-width:1000px;margin:0 auto;padding:20px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px}
+h1{font:700 1.7rem/1.1 var(--head);margin:0}
+.sub{color:var(--muted);margin:0}
+.q{margin:20px 0 16px;padding:18px 20px;background:var(--ink);color:#fff;border-radius:12px}
+.q small{display:block;opacity:.7}
+.q p{margin:2px 0 0;font:600 1.25rem/1.35 var(--head)}
+.duel{display:grid;gap:14px;grid-template-columns:1fr}
+@media(min-width:760px){.duel{grid-template-columns:1fr 1fr}}
+.side{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.side h2{font:700 1rem var(--head);margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}
+.side p{margin:0;white-space:pre-wrap}
+#sideA{border-color:var(--a)}#sideA h2{color:var(--a)}#sideA.win{background:var(--a-soft)}
+#sideB{border-color:var(--b)}#sideB h2{color:var(--b)}#sideB.win{background:var(--b-soft)}
+.who{font:600 .9rem var(--body);color:var(--muted)}
+.votes{display:grid;gap:10px;grid-template-columns:1fr 1fr;margin-top:14px}
+@media(min-width:760px){.votes{grid-template-columns:1.3fr 1fr 1fr 1.3fr}}
+.v{min-height:48px;padding:8px 12px;border:2px solid var(--line);background:var(--surface);border-radius:10px;font-weight:700;cursor:pointer}
+.v:hover:not(:disabled){border-color:var(--ink)}
+.v.a{background:var(--a);border-color:var(--a);color:#fff}
+.v.b{background:var(--b);border-color:var(--b);color:#fff}
+.v:disabled{cursor:default}
+.v:disabled:not(.chosen){opacity:.5}
+.v.chosen{outline:3px solid var(--ink);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:14px}
+.btn{min-height:44px;padding:0 18px;border:2px solid var(--ink);background:var(--surface);border-radius:10px;font-weight:700;cursor:pointer}
+.btn.main{background:var(--ink);color:#fff}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.warn{border-color:var(--line);color:var(--b)}
+.board{margin-top:26px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.board h2{font:700 1.2rem var(--head);margin:0 0 4px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-weight:700;color:var(--muted)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.meter{display:block;height:6px;border-radius:3px;background:var(--a);margin-top:4px}
+.note{color:var(--muted);font-size:.92rem;margin:10px 0 0}
+#msg{min-height:1.4em;color:var(--muted);margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Arène</h1>
+    <p class="sub" id="pos"></p>
+  </header>
+  <p class="sub">Deux IA répondent à la même question. Lisez, puis votez pour la meilleure réponse. Les noms des modèles sont révélés après le vote.</p>
+
+  <div class="q"><small>Question posée aux deux IA</small><p id="question"></p></div>
+
+  <div class="duel">
+    <article class="side" id="sideA"><h2><span>Réponse A</span><span class="who" id="whoA"></span></h2><p id="textA"></p></article>
+    <article class="side" id="sideB"><h2><span>Réponse B</span><span class="who" id="whoB"></span></h2><p id="textB"></p></article>
+  </div>
+
+  <div class="votes" role="group" aria-label="Votre vote">
+    <button class="v a" data-r="left">A est meilleure</button>
+    <button class="v" data-r="tie">Égalité</button>
+    <button class="v" data-r="bad">Aucune n'est bonne</button>
+    <button class="v b" data-r="right">B est meilleure</button>
+  </div>
+
+  <div class="row">
+    <button class="btn" id="prev">Duel précédent</button>
+    <button class="btn main" id="next">Duel suivant</button>
+  </div>
+
+  <section class="board" aria-label="Classement">
+    <h2>Classement</h2>
+    <p class="sub" id="boardInfo"></p>
+    <div class="scroll"><table>
+      <thead><tr><th>Modèle</th><th class="n">Score Elo</th><th class="n">Victoires</th><th class="n">Duels</th></tr></thead>
+      <tbody id="rank"></tbody>
+    </table></div>
+    <p class="note">Les trois modèles sont fictifs et les réponses ont été écrites pour l'exemple. Le score Elo démarre à 1000 et évolue après chaque vote.</p>
+    <div class="row" style="justify-content:flex-start">
+      <button class="btn main" id="export">Exporter les votes (JSON)</button>
+      <button class="btn warn" id="reset">Tout effacer</button>
+    </div>
+    <p id="msg" role="status"></p>
+  </section>
+</div>
+
+<script>
+const DUELS=[
+ {id:1,q:"Explique ce qu'est l'inflation en deux phrases.",
+  a:{m:"Alpha",t:"L'inflation, c'est la hausse générale et durable des prix : avec la même somme d'argent, on peut acheter moins de choses qu'avant. Elle se mesure en pourcentage par an."},
+  b:{m:"Bêta",t:"L'inflation correspond à une augmentation soutenue du niveau général des prix résultant d'un déséquilibre macroéconomique entre l'offre et la demande agrégées, éventuellement amplifiée par la politique monétaire des banques centrales."}},
+ {id:2,q:"Donne-moi une idée de repas rapide avec des pâtes et des œufs.",
+  a:{m:"Alpha",t:"Faites cuire les pâtes avec les œufs entiers directement dans l'eau bouillante pendant dix minutes, puis égouttez et servez."},
+  b:{m:"Gamma",t:"Une carbonara express : cuisez les pâtes, mélangez hors du feu avec deux jaunes d'œufs, du fromage râpé et du poivre. Un peu d'eau de cuisson rend la sauce crémeuse."}},
+ {id:3,q:"Quelle est la différence entre « a » et « à » ?",
+  a:{m:"Bêta",t:"« a » est le verbe avoir conjugué (il a faim). « à » est une préposition (je vais à Paris). Astuce : si on peut le remplacer par « avait », on écrit « a »."},
+  b:{m:"Gamma",t:"Les deux se prononcent pareil, donc on peut écrire l'un ou l'autre. L'accent est surtout une question de style."}},
+ {id:4,q:"Écris un court message pour décliner poliment une invitation.",
+  a:{m:"Alpha",t:"Merci beaucoup pour l'invitation, ça me touche. Malheureusement, je ne pourrai pas être des vôtres ce jour-là. Je vous souhaite une très belle soirée !"},
+  b:{m:"Gamma",t:"Non, je ne viens pas."}},
+ {id:5,q:"Combien font 15 % de 80 ?",
+  a:{m:"Bêta",t:"15 % de 80 font 12. (10 % = 8, 5 % = 4, et 8 + 4 = 12.)"},
+  b:{m:"Gamma",t:"15 % de 80 font 15."}}
+];
+const KEY='arene:v1';
+let st={idx:0,swap:{},votes:[]};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.votes))st=Object.assign(st,s)}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
+const $=id=>document.getElementById(id);
+const say=t=>{$('msg').textContent=t};
+
+// L'ordre A/B est tiré au sort une fois par duel, puis mémorisé.
+function swapped(d){if(!(d.id in st.swap)){st.swap[d.id]=Math.random()<.5;save()}return st.swap[d.id]}
+const voteOf=d=>st.votes.find(v=>v.duelId===d.id);
+
+// Classement Elo : on rejoue tous les votes dans l'ordre.
+function ranking(){
+ const t={};DUELS.forEach(d=>[d.a.m,d.b.m].forEach(m=>t[m]=t[m]||{m,elo:1000,w:0,n:0}));
+ st.votes.forEach(v=>{
+  if(v.result==='bad')return;
+  const A=t[v.left],B=t[v.right];
+  const sa=v.result==='left'?1:v.result==='right'?0:.5;
+  const ea=1/(1+Math.pow(10,(B.elo-A.elo)/400));
+  A.elo+=32*(sa-ea);B.elo+=32*((1-sa)-(1-ea));
+  A.n++;B.n++;if(sa===1)A.w++;if(sa===0)B.w++;
+ });
+ return Object.values(t).sort((x,y)=>y.elo-x.elo);
+}
+
+function renderBoard(){
+ const r=ranking(),max=Math.max(...r.map(x=>x.elo)),min=Math.min(...r.map(x=>x.elo));
+ $('boardInfo').textContent=st.votes.length+' vote'+(st.votes.length>1?'s':'')+' sur '+DUELS.length+' duels.';
+ $('rank').replaceChildren(...r.map(x=>{
+  const tr=document.createElement('tr');
+  const c1=document.createElement('td'),b=document.createElement('b');
+  b.textContent=x.m;c1.append(b);
+  const bar=document.createElement('span');bar.className='meter';
+  bar.style.width=(30+70*(max===min?1:(x.elo-min)/(max-min)))+'%';c1.append(bar);
+  tr.append(c1);
+  [Math.round(x.elo),x.w,x.n].forEach(v=>{const td=document.createElement('td');td.className='n';td.textContent=v;tr.append(td)});
+  return tr}));
+}
+
+function render(){
+ st.idx=Math.min(Math.max(st.idx,0),DUELS.length-1);
+ const d=DUELS[st.idx],sw=swapped(d);
+ const L=sw?d.b:d.a,R=sw?d.a:d.b,v=voteOf(d);
+ $('pos').textContent='Duel '+(st.idx+1)+' sur '+DUELS.length;
+ $('question').textContent=d.q;
+ $('textA').textContent=L.t;$('textB').textContent=R.t;
+ $('whoA').textContent=v?L.m:'';$('whoB').textContent=v?R.m:'';
+ $('sideA').classList.toggle('win',!!v&&v.result==='left');
+ $('sideB').classList.toggle('win',!!v&&v.result==='right');
+ document.querySelectorAll('.v').forEach(b=>{
+  b.disabled=!!v;b.classList.toggle('chosen',!!v&&v.result===b.dataset.r)});
+ $('prev').disabled=st.idx===0;
+ $('next').disabled=st.idx===DUELS.length-1;
+ renderBoard();save();
+}
+
+document.querySelectorAll('.v').forEach(b=>b.onclick=()=>{
+ const d=DUELS[st.idx];if(voteOf(d))return;
+ const sw=swapped(d);
+ st.votes.push({duelId:d.id,left:(sw?d.b:d.a).m,right:(sw?d.a:d.b).m,result:b.dataset.r});
+ say('Vote enregistré. Les modèles sont révélés.');render()});
+$('prev').onclick=()=>{st.idx--;say('');render()};
+$('next').onclick=()=>{st.idx++;say('');render()};
+
+$('export').onclick=()=>{
+ const out={votes:st.votes,classement:ranking().map(x=>({...x,elo:Math.round(x.elo)}))};
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
+ a.download='arene-votes.json';document.body.append(a);a.click();a.remove();say('Fichier arene-votes.json exporté.')};
+$('reset').onclick=()=>{
+ if(!confirm('Effacer tous les votes ?'))return;
+ st={idx:0,swap:{},votes:[]};say('Votes effacés.');render()};
+
+render();
+</script>
+</body>
+</html>

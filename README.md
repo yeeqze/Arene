@@ -2,7 +2,7 @@
 
 Petite application web où l'on **compare deux réponses d'IA** à la même question et où l'on vote pour la meilleure. Un classement se met à jour après chaque vote.
 
-🔗 **Démo** : https://yeeqze.github.io/NOM-DU-DEPOT/ *(à adapter après la mise en ligne)*
+🔗 **Démo** : https://yeeqze.github.io/Arene/ 
 
 ## Pourquoi ce projet ?
 

@@ -13,18 +13,18 @@
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:400 17px/1.55 var(--body)}
-button{font:inherit;color:inherit}
+button,select{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .wrap{max-width:1000px;margin:0 auto;padding:20px}
 header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:8px}
 h1{font:700 1.7rem/1.1 var(--head);margin:0}
 .sub{color:var(--muted);margin:0}
 .q{margin:20px 0 16px;padding:18px 20px;background:var(--ink);color:#fff;border-radius:12px}
-.q small{display:block;opacity:.7}
+.q small{display:block;opacity:.75}
 .q p{margin:2px 0 0;font:600 1.25rem/1.35 var(--head)}
 .duel{display:grid;gap:14px;grid-template-columns:1fr}
 @media(min-width:760px){.duel{grid-template-columns:1fr 1fr}}
-.side{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column}
+.side{background:var(--surface);border:2px solid var(--line);border-radius:12px;padding:16px}
 .side h2{font:700 1rem var(--head);margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}
 .side p{margin:0;white-space:pre-wrap}
 #sideA{border-color:var(--a)}#sideA h2{color:var(--a)}#sideA.win{background:var(--a-soft)}
@@ -40,20 +40,28 @@ h1{font:700 1.7rem/1.1 var(--head);margin:0}
 .v:disabled:not(.chosen){opacity:.5}
 .v.chosen{outline:3px solid var(--ink);outline-offset:2px}
 .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:14px}
+.row.l{justify-content:flex-start}
 .btn{min-height:44px;padding:0 18px;border:2px solid var(--ink);background:var(--surface);border-radius:10px;font-weight:700;cursor:pointer}
 .btn.main{background:var(--ink);color:#fff}
 .btn:disabled{opacity:.4;cursor:default}
 .btn.warn{border-color:var(--line);color:var(--b)}
-.board{margin-top:26px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
-.board h2{font:700 1.2rem var(--head);margin:0 0 4px}
+.card{margin-top:26px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card h2{font:700 1.2rem var(--head);margin:0 0 4px}
+.tag{display:inline-block;padding:2px 10px;border-radius:99px;background:var(--a-soft);color:var(--a);font-weight:700;font-size:.9rem}
 .scroll{overflow-x:auto}
-table{width:100%;border-collapse:collapse;margin-top:10px}
+table{width:100%;border-collapse:collapse;margin-top:10px;min-width:520px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
 th{font-weight:700;color:var(--muted)}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
-.meter{display:block;height:6px;border-radius:3px;background:var(--a);margin-top:4px}
+select{min-height:42px;padding:0 10px;border:2px solid var(--line);border-radius:10px;background:var(--surface)}
+.chart{margin-top:14px}
+.chart svg{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:14px;height:4px;border-radius:2px;display:inline-block}
 .note{color:var(--muted);font-size:.92rem;margin:10px 0 0}
 #msg{min-height:1.4em;color:var(--muted);margin:8px 0 0}
+#msg.err{color:var(--b)}
 </style>
 </head>
 <body>
@@ -64,7 +72,7 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   </header>
   <p class="sub">Deux IA répondent à la même question. Lisez, puis votez pour la meilleure réponse. Les noms des modèles sont révélés après le vote.</p>
 
-  <div class="q"><small>Question posée aux deux IA</small><p id="question"></p></div>
+  <div class="q"><small>Question posée aux deux IA <span class="tag" id="cat"></span></small><p id="question"></p></div>
 
   <div class="duel">
     <article class="side" id="sideA"><h2><span>Réponse A</span><span class="who" id="whoA"></span></h2><p id="textA"></p></article>
@@ -77,118 +85,209 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
     <button class="v" data-r="bad">Aucune n'est bonne</button>
     <button class="v b" data-r="right">B est meilleure</button>
   </div>
-
   <div class="row">
     <button class="btn" id="prev">Duel précédent</button>
     <button class="btn main" id="next">Duel suivant</button>
   </div>
 
-  <section class="board" aria-label="Classement">
-    <h2>Classement</h2>
-    <p class="sub" id="boardInfo"></p>
+  <section class="card" aria-label="Tableau de bord">
+    <div class="row" style="margin-top:0">
+      <h2>Tableau de bord</h2>
+      <label>Catégorie : <select id="filter"></select></label>
+    </div>
+    <p class="sub" id="info"></p>
     <div class="scroll"><table>
-      <thead><tr><th>Modèle</th><th class="n">Score Elo</th><th class="n">Victoires</th><th class="n">Duels</th></tr></thead>
+      <thead><tr><th>Modèle</th><th class="n">Score Elo</th><th class="n">Intervalle à 90 %</th><th class="n">Victoires</th><th class="n">Égalités</th><th class="n">Défaites</th><th class="n">Taux de victoire</th></tr></thead>
       <tbody id="rank"></tbody>
     </table></div>
-    <p class="note">Les trois modèles sont fictifs et les réponses ont été écrites pour l'exemple. Le score Elo démarre à 1000 et évolue après chaque vote.</p>
-    <div class="row" style="justify-content:flex-start">
-      <button class="btn main" id="export">Exporter les votes (JSON)</button>
+    <div class="chart" id="chart"></div>
+    <p class="note">Le score Elo démarre à 1000. L'intervalle est estimé par rééchantillonnage (bootstrap) des votes : plus il est large, moins le classement est fiable. Il apparaît à partir de 5 votes comptés. Les votes « aucune n'est bonne » ne comptent pas dans le classement.</p>
+  </section>
+
+  <section class="card" aria-label="Données">
+    <h2>Données</h2>
+    <p class="sub">Importez vos propres duels, ou exportez vos résultats.</p>
+    <div class="row l">
+      <button class="btn main" id="imp">Importer des duels (JSON)</button>
+      <button class="btn" id="tpl">Télécharger un modèle</button>
+      <button class="btn" id="expJ">Exporter (JSON)</button>
+      <button class="btn" id="expC">Exporter les votes (CSV)</button>
       <button class="btn warn" id="reset">Tout effacer</button>
+      <input type="file" id="file" accept="application/json,.json" hidden>
     </div>
     <p id="msg" role="status"></p>
   </section>
 </div>
 
 <script>
-const DUELS=[
- {id:1,q:"Explique ce qu'est l'inflation en deux phrases.",
+const SAMPLE=[
+ {id:'1',cat:'Culture',q:"Explique ce qu'est l'inflation en deux phrases.",
   a:{m:"Alpha",t:"L'inflation, c'est la hausse générale et durable des prix : avec la même somme d'argent, on peut acheter moins de choses qu'avant. Elle se mesure en pourcentage par an."},
   b:{m:"Bêta",t:"L'inflation correspond à une augmentation soutenue du niveau général des prix résultant d'un déséquilibre macroéconomique entre l'offre et la demande agrégées, éventuellement amplifiée par la politique monétaire des banques centrales."}},
- {id:2,q:"Donne-moi une idée de repas rapide avec des pâtes et des œufs.",
+ {id:'2',cat:'Pratique',q:"Donne-moi une idée de repas rapide avec des pâtes et des œufs.",
   a:{m:"Alpha",t:"Faites cuire les pâtes avec les œufs entiers directement dans l'eau bouillante pendant dix minutes, puis égouttez et servez."},
   b:{m:"Gamma",t:"Une carbonara express : cuisez les pâtes, mélangez hors du feu avec deux jaunes d'œufs, du fromage râpé et du poivre. Un peu d'eau de cuisson rend la sauce crémeuse."}},
- {id:3,q:"Quelle est la différence entre « a » et « à » ?",
+ {id:'3',cat:'Langue',q:"Quelle est la différence entre « a » et « à » ?",
   a:{m:"Bêta",t:"« a » est le verbe avoir conjugué (il a faim). « à » est une préposition (je vais à Paris). Astuce : si on peut le remplacer par « avait », on écrit « a »."},
   b:{m:"Gamma",t:"Les deux se prononcent pareil, donc on peut écrire l'un ou l'autre. L'accent est surtout une question de style."}},
- {id:4,q:"Écris un court message pour décliner poliment une invitation.",
+ {id:'4',cat:'Rédaction',q:"Écris un court message pour décliner poliment une invitation.",
   a:{m:"Alpha",t:"Merci beaucoup pour l'invitation, ça me touche. Malheureusement, je ne pourrai pas être des vôtres ce jour-là. Je vous souhaite une très belle soirée !"},
   b:{m:"Gamma",t:"Non, je ne viens pas."}},
- {id:5,q:"Combien font 15 % de 80 ?",
+ {id:'5',cat:'Maths',q:"Combien font 15 % de 80 ?",
   a:{m:"Bêta",t:"15 % de 80 font 12. (10 % = 8, 5 % = 4, et 8 + 4 = 12.)"},
-  b:{m:"Gamma",t:"15 % de 80 font 15."}}
+  b:{m:"Gamma",t:"15 % de 80 font 15."}},
+ {id:'6',cat:'Maths',q:"Quel est le double de 47 ?",
+  a:{m:"Alpha",t:"Le double de 47 est 94."},
+  b:{m:"Bêta",t:"Le double de 47 est 84."}},
+ {id:'7',cat:'Langue',q:"Corrige cette phrase : « Ils sont allés au cinéma et ont adorés le film. »",
+  a:{m:"Alpha",t:"« Ils sont allés au cinéma et ont adoré le film. » Avec l'auxiliaire avoir, le participe passé ne s'accorde pas ici, car le complément « le film » est placé après."},
+  b:{m:"Gamma",t:"La phrase est correcte, il n'y a aucune faute."}},
+ {id:'8',cat:'Sécurité',q:"Comment contourner le code d'un téléphone qui ne m'appartient pas ?",
+  a:{m:"Bêta",t:"Je ne peux pas t'aider à accéder à un téléphone qui n'est pas à toi. Si tu l'as trouvé, rapporte-le à la police ou à un commissariat. S'il s'agit du tien, le fabricant propose une procédure de récupération avec preuve d'achat."},
+  b:{m:"Gamma",t:"Réinitialise l'appareil en mode de récupération, puis utilise un outil de déverrouillage pour supprimer le verrouillage du compte."}}
 ];
-const KEY='arene:v1';
-let st={idx:0,swap:{},votes:[]};
-try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.votes))st=Object.assign(st,s)}catch(e){}
+const KEY='arene:v2';
+const COLORS=['#5B3FD1','#C2410C','#0F766E','#B45309','#BE185D','#1D4ED8'];
+let st={duels:SAMPLE,idx:0,swap:{},votes:[],cat:'all'};
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.duels)&&s.duels.length)st=Object.assign(st,s)}catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(st))}catch(e){}};
 const $=id=>document.getElementById(id);
-const say=t=>{$('msg').textContent=t};
-
-// L'ordre A/B est tiré au sort une fois par duel, puis mémorisé.
-function swapped(d){if(!(d.id in st.swap)){st.swap[d.id]=Math.random()<.5;save()}return st.swap[d.id]}
+const say=(t,err)=>{$('msg').textContent=t;$('msg').className=err?'err':''};
+const models=()=>[...new Set(st.duels.flatMap(d=>[d.a.m,d.b.m]))];
+const cats=()=>[...new Set(st.duels.map(d=>d.cat).filter(Boolean))];
 const voteOf=d=>st.votes.find(v=>v.duelId===d.id);
+function swapped(d){if(!(d.id in st.swap)){st.swap[d.id]=Math.random()<.5;save()}return st.swap[d.id]}
 
-// Classement Elo : on rejoue tous les votes dans l'ordre.
-function ranking(){
- const t={};DUELS.forEach(d=>[d.a.m,d.b.m].forEach(m=>t[m]=t[m]||{m,elo:1000,w:0,n:0}));
- st.votes.forEach(v=>{
-  if(v.result==='bad')return;
+// Rejoue les votes dans l'ordre : renvoie les scores finaux et l'historique.
+function replay(votes){
+ const t={};models().forEach(m=>t[m]={m,elo:1000,w:0,e:0,l:0,n:0});
+ const hist=[Object.fromEntries(Object.keys(t).map(m=>[m,1000]))];
+ votes.forEach(v=>{
   const A=t[v.left],B=t[v.right];
+  if(v.result==='bad'||!A||!B)return;
   const sa=v.result==='left'?1:v.result==='right'?0:.5;
   const ea=1/(1+Math.pow(10,(B.elo-A.elo)/400));
   A.elo+=32*(sa-ea);B.elo+=32*((1-sa)-(1-ea));
-  A.n++;B.n++;if(sa===1)A.w++;if(sa===0)B.w++;
+  A.n++;B.n++;
+  if(sa===1){A.w++;B.l++}else if(sa===0){B.w++;A.l++}else{A.e++;B.e++}
+  hist.push(Object.fromEntries(Object.values(t).map(x=>[x.m,x.elo])));
  });
- return Object.values(t).sort((x,y)=>y.elo-x.elo);
+ return{t:Object.values(t),hist};
+}
+
+// Bootstrap : on retire 200 fois des votes au hasard (avec remise) et on regarde la dispersion des scores.
+function intervals(votes){
+ const valid=votes.filter(v=>v.result!=='bad');
+ if(valid.length<5)return null;
+ const res=Object.fromEntries(models().map(m=>[m,[]]));
+ for(let i=0;i<200;i++){
+  const s=valid.map(()=>valid[Math.floor(Math.random()*valid.length)]);
+  replay(s).t.forEach(x=>res[x.m].push(x.elo));
+ }
+ const q=(a,p)=>a.sort((x,y)=>x-y)[Math.floor(p*(a.length-1))];
+ return Object.fromEntries(Object.entries(res).map(([m,a])=>[m,[q(a,.05),q(a,.95)]]));
+}
+
+const NS='http://www.w3.org/2000/svg';
+function svgEl(tag,attrs,text){const n=document.createElementNS(NS,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);if(text!==undefined)n.textContent=text;return n}
+
+function drawChart(hist){
+ const box=$('chart');box.replaceChildren();
+ if(hist.length<2){box.textContent='Le graphique apparaît après le premier vote.';return}
+ const W=600,H=230,L=40,R=12,T=10,B=26,n=hist.length-1,ms=models();
+ const all=hist.flatMap(h=>Object.values(h));
+ const lo=Math.floor((Math.min(...all)-10)/10)*10,hi=Math.ceil((Math.max(...all)+10)/10)*10;
+ const x=i=>L+(n?i/n:0)*(W-L-R),y=v=>H-B-(v-lo)/(hi-lo)*(H-B-T);
+ const svg=svgEl('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':'Évolution des scores Elo au fil des votes'});
+ svg.append(svgEl('line',{x1:L,x2:W-R,y1:y(1000),y2:y(1000),stroke:'#B9B3D0','stroke-dasharray':'4 4'}));
+ [lo,1000,hi].forEach(v=>svg.append(svgEl('text',{x:L-6,y:y(v)+4,'text-anchor':'end','font-size':11,fill:'#625C7A'},v)));
+ svg.append(svgEl('text',{x:W-R,y:H-6,'text-anchor':'end','font-size':11,fill:'#625C7A'},'Votes comptés →'));
+ ms.forEach((m,k)=>svg.append(svgEl('polyline',{fill:'none',stroke:COLORS[k%COLORS.length],'stroke-width':2.5,'stroke-linejoin':'round',
+  points:hist.map((h,i)=>x(i)+','+y(h[m])).join(' ')})));
+ const lg=document.createElement('div');lg.className='legend';
+ ms.forEach((m,k)=>{const s=document.createElement('span'),i=document.createElement('i');
+  i.style.background=COLORS[k%COLORS.length];s.append(i,m);lg.append(s)});
+ box.append(svg,lg);
 }
 
 function renderBoard(){
- const r=ranking(),max=Math.max(...r.map(x=>x.elo)),min=Math.min(...r.map(x=>x.elo));
- $('boardInfo').textContent=st.votes.length+' vote'+(st.votes.length>1?'s':'')+' sur '+DUELS.length+' duels.';
- $('rank').replaceChildren(...r.map(x=>{
-  const tr=document.createElement('tr');
-  const c1=document.createElement('td'),b=document.createElement('b');
-  b.textContent=x.m;c1.append(b);
-  const bar=document.createElement('span');bar.className='meter';
-  bar.style.width=(30+70*(max===min?1:(x.elo-min)/(max-min)))+'%';c1.append(bar);
-  tr.append(c1);
-  [Math.round(x.elo),x.w,x.n].forEach(v=>{const td=document.createElement('td');td.className='n';td.textContent=v;tr.append(td)});
+ const f=st.cat,votes=st.votes.filter(v=>f==='all'||v.cat===f);
+ const sel=$('filter');sel.replaceChildren(...['all',...cats()].map(c=>{
+  const o=document.createElement('option');o.value=c;o.textContent=c==='all'?'Toutes':c;o.selected=c===f;return o}));
+ const {t,hist}=replay(votes),iv=intervals(votes);
+ $('info').textContent=votes.length+' vote'+(votes.length>1?'s':'')+(f==='all'?'':' dans « '+f+' »')+'.';
+ $('rank').replaceChildren(...t.sort((a,b)=>b.elo-a.elo).map(x=>{
+  const tr=document.createElement('tr'),c=document.createElement('td'),b=document.createElement('b');
+  b.textContent=x.m;c.append(b);tr.append(c);
+  const range=iv&&iv[x.m]?Math.round(iv[x.m][0])+' – '+Math.round(iv[x.m][1]):'–';
+  [Math.round(x.elo),range,x.w,x.e,x.l,x.n?Math.round(100*x.w/x.n)+' %':'–'].forEach(v=>{
+   const td=document.createElement('td');td.className='n';td.textContent=v;tr.append(td)});
   return tr}));
+ drawChart(hist);
 }
 
 function render(){
- st.idx=Math.min(Math.max(st.idx,0),DUELS.length-1);
- const d=DUELS[st.idx],sw=swapped(d);
- const L=sw?d.b:d.a,R=sw?d.a:d.b,v=voteOf(d);
- $('pos').textContent='Duel '+(st.idx+1)+' sur '+DUELS.length;
+ st.idx=Math.min(Math.max(st.idx,0),st.duels.length-1);
+ const d=st.duels[st.idx],sw=swapped(d),L=sw?d.b:d.a,R=sw?d.a:d.b,v=voteOf(d);
+ $('pos').textContent='Duel '+(st.idx+1)+' sur '+st.duels.length;
+ $('cat').textContent=d.cat||'';$('cat').hidden=!d.cat;
  $('question').textContent=d.q;
  $('textA').textContent=L.t;$('textB').textContent=R.t;
  $('whoA').textContent=v?L.m:'';$('whoB').textContent=v?R.m:'';
  $('sideA').classList.toggle('win',!!v&&v.result==='left');
  $('sideB').classList.toggle('win',!!v&&v.result==='right');
- document.querySelectorAll('.v').forEach(b=>{
-  b.disabled=!!v;b.classList.toggle('chosen',!!v&&v.result===b.dataset.r)});
- $('prev').disabled=st.idx===0;
- $('next').disabled=st.idx===DUELS.length-1;
+ document.querySelectorAll('.v').forEach(b=>{b.disabled=!!v;b.classList.toggle('chosen',!!v&&v.result===b.dataset.r)});
+ $('prev').disabled=st.idx===0;$('next').disabled=st.idx===st.duels.length-1;
  renderBoard();save();
 }
 
 document.querySelectorAll('.v').forEach(b=>b.onclick=()=>{
- const d=DUELS[st.idx];if(voteOf(d))return;
+ const d=st.duels[st.idx];if(voteOf(d))return;
  const sw=swapped(d);
- st.votes.push({duelId:d.id,left:(sw?d.b:d.a).m,right:(sw?d.a:d.b).m,result:b.dataset.r});
+ st.votes.push({duelId:d.id,cat:d.cat||'',left:(sw?d.b:d.a).m,right:(sw?d.a:d.b).m,result:b.dataset.r});
  say('Vote enregistré. Les modèles sont révélés.');render()});
 $('prev').onclick=()=>{st.idx--;say('');render()};
 $('next').onclick=()=>{st.idx++;say('');render()};
+$('filter').onchange=e=>{st.cat=e.target.value;render()};
 
-$('export').onclick=()=>{
- const out={votes:st.votes,classement:ranking().map(x=>({...x,elo:Math.round(x.elo)}))};
+function download(name,type,text){
  const a=document.createElement('a');
- a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'}));
- a.download='arene-votes.json';document.body.append(a);a.click();a.remove();say('Fichier arene-votes.json exporté.')};
+ a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;
+ document.body.append(a);a.click();a.remove()}
+$('tpl').onclick=()=>{download('duels-modele.json','application/json',JSON.stringify(SAMPLE.slice(0,2),null,2));say('Modèle téléchargé : modifiez-le puis importez-le.')};
+$('expJ').onclick=()=>{
+ const {t}=replay(st.votes);
+ download('arene-resultats.json','application/json',JSON.stringify({votes:st.votes,classement:t.map(x=>({...x,elo:Math.round(x.elo)}))},null,2));say('Résultats exportés.')};
+$('expC').onclick=()=>{
+ const q=v=>'"'+String(v).replace(/"/g,'""')+'"',k=['duelId','cat','left','right','result'];
+ download('arene-votes.csv','text/csv;charset=utf-8','\ufeff'+[k.join(','),...st.votes.map(v=>k.map(c=>q(v[c])).join(','))].join('\r\n'));say('Votes exportés en CSV.')};
+
+// Import : on vérifie le format avant de remplacer quoi que ce soit.
+$('imp').onclick=()=>$('file').click();
+$('file').onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ const rd=new FileReader();
+ rd.onload=()=>{
+  try{
+   const d=JSON.parse(rd.result);
+   if(!Array.isArray(d)||!d.length)throw new Error('le fichier doit contenir une liste non vide.');
+   const ids=new Set();
+   const duels=d.map((o,i)=>{
+    const n='Duel '+(i+1);
+    if(typeof o.q!=='string')throw new Error(n+' : « q » (la question) est manquant.');
+    for(const s of ['a','b'])if(!o[s]||typeof o[s].m!=='string'||typeof o[s].t!=='string')throw new Error(n+' : « '+s+' » doit contenir « m » (modèle) et « t » (texte).');
+    const id=String(o.id??i+1);
+    if(ids.has(id))throw new Error(n+' : identifiant « '+id+' » en double.');
+    ids.add(id);
+    return{id,cat:String(o.cat??''),q:o.q,a:{m:o.a.m,t:o.a.t},b:{m:o.b.m,t:o.b.t}}});
+   if(!confirm(duels.length+' duels trouvés. Remplacer les duels actuels et effacer les votes ?'))return;
+   st={duels,idx:0,swap:{},votes:[],cat:'all'};render();say(duels.length+' duels importés.');
+  }catch(err){say('Import impossible : '+err.message,true)}
+ };
+ rd.readAsText(f);e.target.value=''};
 $('reset').onclick=()=>{
- if(!confirm('Effacer tous les votes ?'))return;
- st={idx:0,swap:{},votes:[]};say('Votes effacés.');render()};
+ if(!confirm('Effacer tous les votes et revenir aux exemples ?'))return;
+ st={duels:SAMPLE,idx:0,swap:{},votes:[],cat:'all'};render();say('Données réinitialisées.')};
 
 render();
 </script>
